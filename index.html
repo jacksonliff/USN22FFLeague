@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USN22FFLeague — Live Scoreboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#141f18;
+    --bg-deep:#0d1610;
+    --panel:#1c2a20;
+    --panel-raised:#233428;
+    --line: rgba(232,225,205,0.10);
+    --cream:#efe9d8;
+    --cream-dim: rgba(239,233,216,0.62);
+    --gold:#e8b34a;
+    --gold-dim: rgba(232,179,74,0.35);
+    --red:#d6564f;
+    --green-win:#7fbf6a;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 500px at 50% -10%, rgba(232,179,74,0.08), transparent 60%),
+      linear-gradient(180deg, var(--bg-deep), var(--bg) 8%, var(--bg));
+    color:var(--cream);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    padding-bottom:60px;
+  }
+  .digits{ font-family:'Teko','IBM Plex Sans',sans-serif; font-weight:600; letter-spacing:0.02em; }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+
+  a{color:inherit;}
+
+  /* ===== Jumbotron header ===== */
+  .jumbotron{
+    background:
+      repeating-linear-gradient(180deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 1px, transparent 1px, transparent 3px),
+      linear-gradient(180deg, #17241b, #101c14);
+    border-bottom:1px solid var(--line);
+    padding: 22px 20px 18px;
+    position:sticky;
+    top:0;
+    z-index:20;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .jumbotron-inner{
+    max-width:1080px;
+    margin:0 auto;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+  }
+  .league-id-block{ display:flex; align-items:center; gap:14px; min-width:0; }
+  .avatar-league{
+    width:46px;height:46px;border-radius:8px;
+    background:var(--panel-raised);
+    border:1px solid var(--gold-dim);
+    object-fit:cover;
+    flex-shrink:0;
+  }
+  .league-name{
+    font-size:1.5rem;
+    line-height:1.15;
+    font-weight:700;
+    letter-spacing:0.01em;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .league-sub{
+    font-size:0.78rem;
+    color:var(--cream-dim);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .scorebug{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background: linear-gradient(180deg, #1b2a20, #12201a);
+    border:1px solid var(--gold-dim);
+    border-radius:8px;
+    padding:8px 16px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.3), 0 0 18px rgba(232,179,74,0.06);
+  }
+  .scorebug .label{
+    font-size:0.66rem;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    color:var(--cream-dim);
+  }
+  .scorebug .value{
+    font-size:2rem;
+    color:var(--gold);
+    line-height:1;
+    text-shadow: 0 0 12px rgba(232,179,74,0.45);
+  }
+  .dot-live{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--red);
+    box-shadow:0 0 8px var(--red);
+    animation: pulse 1.6s ease-in-out infinite;
+    display:inline-block;
+    margin-right:6px;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  .refresh-row{
+    max-width:1080px;
+    margin: 12px auto 0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+    font-size:0.78rem;
+    color:var(--cream-dim);
+  }
+  .refresh-btn{
+    background:var(--gold);
+    color:#1a1408;
+    border:none;
+    font-weight:700;
+    font-size:0.8rem;
+    letter-spacing:0.03em;
+    padding:9px 18px;
+    border-radius:7px;
+    cursor:pointer;
+    transition:transform 0.12s ease, box-shadow 0.12s ease;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.25);
+  }
+  .refresh-btn:hover{ transform:translateY(-1px); box-shadow:0 4px 10px rgba(232,179,74,0.25); }
+  .refresh-btn:active{ transform:translateY(0px); }
+  .refresh-btn:disabled{ opacity:0.55; cursor:default; transform:none; box-shadow:none; }
+  .refresh-btn .spin{
+    display:inline-block;
+    width:10px;height:10px;
+    border:2px solid rgba(26,20,8,0.4);
+    border-top-color:#1a1408;
+    border-radius:50%;
+    margin-right:6px;
+    vertical-align:-1px;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ===== Layout ===== */
+  main{ max-width:1080px; margin:0 auto; padding: 26px 20px 0; }
+  section{ margin-bottom:40px; }
+  .section-head{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    margin-bottom:14px;
+    border-bottom:1px solid var(--line);
+    padding-bottom:8px;
+  }
+  .section-title{
+    font-size:1.5rem;
+    font-weight:600;
+    letter-spacing:0.01em;
+  }
+  .section-note{ font-size:0.78rem; color:var(--cream-dim); }
+
+  .banner{
+    border-radius:var(--radius);
+    padding:14px 16px;
+    font-size:0.88rem;
+    margin-bottom:16px;
+    border:1px solid;
+  }
+  .banner.error{ background:rgba(214,86,79,0.1); border-color:rgba(214,86,79,0.4); color:#f3b6b2; }
+  .banner.info{ background:rgba(232,179,74,0.08); border-color:var(--gold-dim); color:var(--cream); }
+
+  /* ===== Matchups ===== */
+  .matchup-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap:14px;
+  }
+  .matchup-card{
+    background:linear-gradient(180deg, var(--panel-raised), var(--panel));
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px 16px;
+  }
+  .matchup-status{
+    font-size:0.66rem;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--cream-dim);
+    margin-bottom:10px;
+    display:flex;
+    justify-content:space-between;
+  }
+  .team-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:7px 0;
+  }
+  .team-row + .team-row{ border-top:1px dashed var(--line); }
+  .team-avatar{
+    width:34px;height:34px;border-radius:6px;
+    background:var(--bg-deep);
+    object-fit:cover;
+    flex-shrink:0;
+    border:1px solid var(--line);
+  }
+  .team-info{ flex:1; min-width:0; }
+  .team-name{
+    font-weight:600;
+    font-size:0.92rem;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .team-owner{
+    font-size:0.7rem;
+    color:var(--cream-dim);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .team-score{
+    font-family:'Teko',sans-serif;
+    font-size:1.9rem;
+    font-weight:600;
+    min-width:64px;
+    text-align:right;
+    color:var(--cream);
+  }
+  .team-row.winning .team-score{ color:var(--gold); text-shadow:0 0 10px rgba(232,179,74,0.35); }
+  .team-row.winning .team-name{ color:var(--gold); }
+
+  /* ===== Standings ===== */
+  .standings-wrap{
+    overflow-x:auto;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--panel);
+  }
+  table{ width:100%; border-collapse:collapse; min-width:560px; }
+  thead th{
+    text-align:left;
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--cream-dim);
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:11px 14px;
+    font-size:0.88rem;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background:rgba(232,179,74,0.045); }
+  .rank-cell{ font-family:'Teko',sans-serif; font-size:1.3rem; color:var(--gold); width:36px; }
+  .team-cell{ display:flex; align-items:center; gap:10px; }
+  .team-cell img{ width:28px;height:28px;border-radius:6px; border:1px solid var(--line); flex-shrink:0; }
+  .team-cell-text{ display:flex; flex-direction:column; min-width:0; }
+  .team-cell-text .tname{ font-weight:600; }
+  .team-cell-text .oname{ font-size:0.72rem; color:var(--cream-dim); }
+  .num-cell{ font-variant-numeric:tabular-nums; }
+
+  .skeleton{
+    background: linear-gradient(90deg, var(--panel) 25%, var(--panel-raised) 37%, var(--panel) 63%);
+    background-size:400% 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius:6px;
+  }
+  @keyframes shimmer{ 0%{background-position:100% 0;} 100%{background-position:-100% 0;} }
+  .skeleton-card{ height:112px; border-radius:var(--radius); }
+
+  footer{
+    max-width:1080px;
+    margin:20px auto 0;
+    padding:16px 20px 0;
+    font-size:0.72rem;
+    color:var(--cream-dim);
+    border-top:1px solid var(--line);
+    text-align:center;
+  }
+
+  @media (max-width:520px){
+    .league-name{ font-size:1.2rem; }
+    .scorebug .value{ font-size:1.5rem; }
+    .team-score{ font-size:1.5rem; min-width:50px; }
+  }
+
+  :focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+
+  @media (prefers-reduced-motion: reduce){
+    .dot-live, .refresh-btn .spin, .skeleton{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="jumbotron">
+  <div class="jumbotron-inner">
+    <div class="league-id-block">
+      <img id="league-avatar" class="avatar-league" alt="" style="display:none;">
+      <div style="min-width:0;">
+        <div class="league-name" id="league-name">Loading league…</div>
+        <div class="league-sub" id="league-sub">Sleeper Fantasy Football</div>
+      </div>
+    </div>
+    <div class="scorebug">
+      <span class="label"><span class="dot-live" id="live-dot" style="display:none;"></span>Week</span>
+      <span class="value" id="week-value">--</span>
+    </div>
+  </div>
+  <div class="refresh-row">
+    <span id="last-refreshed">Last refreshed: —</span>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadAll()">Refresh data</button>
+  </div>
+</header>
+
+<main>
+
+  <div id="banner-area"></div>
+
+  <section>
+    <div class="section-head">
+      <div class="section-title">This week's matchups</div>
+      <div class="section-note" id="matchup-note"></div>
+    </div>
+    <div class="matchup-grid" id="matchup-grid">
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="section-title">Standings</div>
+      <div class="section-note" id="standings-note"></div>
+    </div>
+    <div class="standings-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Team</th>
+            <th class="num-cell">W</th>
+            <th class="num-cell">L</th>
+            <th class="num-cell">T</th>
+            <th class="num-cell">PF</th>
+            <th class="num-cell">PA</th>
+          </tr>
+        </thead>
+        <tbody id="standings-body">
+          <tr><td colspan="7" style="padding:20px; text-align:center; color:var(--cream-dim);">Loading standings…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Data served live from the official Sleeper API (api.sleeper.app). Refreshes automatically every 5 minutes.
+</footer>
+
+<script>
+/* ============================================================
+   SLEEPER LEAGUE ID
+   This is the only piece of league-specific configuration in
+   this file. Everything else (teams, owners, scores, records,
+   week number, avatars) is fetched live from Sleeper — nothing
+   below is hard-coded.
+   ============================================================ */
+const SLEEPER_LEAGUE_ID = "1387266698674999296";
+
+/* All Sleeper endpoints are called over HTTPS and require no API key. */
+const API_BASE = "https://api.sleeper.app/v1";
+const CDN_BASE = "https://sleepercdn.com";
+
+let refreshTimer = null;
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+/* ---------- small helpers ---------- */
+
+// Sleeper splits points into an integer part (fpts) and a decimal part (fpts_decimal, 0-99)
+function combinePoints(whole, decimal){
+  const w = typeof whole === "number" ? whole : 0;
+  const d = typeof decimal === "number" ? decimal : 0;
+  return w + d / 100;
+}
+
+function avatarUrl(avatarId, size){
+  if (!avatarId) return null;
+  const path = size === "full" ? "avatars" : "avatars/thumbs";
+  return `${CDN_BASE}/${path}/${avatarId}`;
+}
+
+function escapeHtml(str){
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML;
+}
+
+function setBanner(message, type){
+  const area = document.getElementById("banner-area");
+  if (!message){ area.innerHTML = ""; return; }
+  area.innerHTML = `<div class="banner ${type}">${escapeHtml(message)}</div>`;
+}
+
+async function fetchJson(url){
+  const res = await fetch(url, { method: "GET" });
+  if (!res.ok){
+    throw new Error(`Request failed (${res.status}) for ${url}`);
+  }
+  return res.json();
+}
+
+/* ---------- core data pipeline ---------- */
+
+async function loadAll(){
+  const btn = document.getElementById("refresh-btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Refreshing…';
+  setBanner("", "");
+
+  try {
+    // 1. Current NFL state -> season + week
+    const state = await fetchJson(`${API_BASE}/state/nfl`);
+
+    // 2. League, users, and rosters can be fetched in parallel
+    const [league, users, rosters] = await Promise.all([
+      fetchJson(`${API_BASE}/league/${SLEEPER_LEAGUE_ID}`),
+      fetchJson(`${API_BASE}/league/${SLEEPER_LEAGUE_ID}/users`),
+      fetchJson(`${API_BASE}/league/${SLEEPER_LEAGUE_ID}/rosters`)
+    ]);
+
+    if (!league) {
+      throw new Error("Sleeper returned no league data for this league ID.");
+    }
+
+    // Figure out which week to request matchups for.
+    // During active regular season, state.week is the current week.
+    // Before week 1 / in the offseason, state.week may be 0 — fall back to week 1
+    // so the page still shows something meaningful rather than an empty request.
+    let targetWeek = state && typeof state.week === "number" && state.week > 0 ? state.week : 1;
+    const isLive = state && state.season_type === "regular";
+
+    // Build lookup: user_id -> user (display_name, team_name, avatar)
+    const userById = {};
+    (users || []).forEach(u => { userById[u.user_id] = u; });
+
+    // Build lookup: roster_id -> { owner user, co-owner users, roster settings }
+    const rosterById = {};
+    (rosters || []).forEach(r => {
+      const owner = userById[r.owner_id] || null;
+      const coOwners = (r.co_owners || [])
+        .map(id => userById[id])
+        .filter(Boolean);
+      rosterById[r.roster_id] = { roster: r, owner, coOwners };
+    });
+
+    function teamDisplayName(rosterEntry){
+      if (!rosterEntry) return "Unknown team";
+      const { roster, owner } = rosterEntry;
+      const metaName = roster && roster.metadata && roster.metadata.team_name;
+      if (metaName && metaName.trim()) return metaName.trim();
+      const ownerMetaName = owner && owner.metadata && owner.metadata.team_name;
+      if (ownerMetaName && ownerMetaName.trim()) return ownerMetaName.trim();
+      if (owner && owner.display_name) return owner.display_name;
+      return "Unclaimed team";
+    }
+
+    function ownerDisplayName(rosterEntry){
+      if (!rosterEntry) return "";
+      const { owner, coOwners } = rosterEntry;
+      if (!owner) return coOwners.length ? coOwners.map(c => c.display_name).join(" & ") : "No owner assigned";
+      let label = owner.display_name || "Unknown owner";
+      if (coOwners && coOwners.length){
+        label += ` + ${coOwners.length} co-owner${coOwners.length > 1 ? "s" : ""}`;
+      }
+      return label;
+    }
+
+    function teamAvatar(rosterEntry){
+      if (!rosterEntry) return null;
+      const { roster, owner } = rosterEntry;
+      const rosterAvatar = roster && roster.metadata && roster.metadata.avatar;
+      if (rosterAvatar) return rosterAvatar;
+      if (owner && owner.avatar) return avatarUrl(owner.avatar);
+      return null;
+    }
+
+    // 3. Matchups for the target week
+    let matchups = [];
+    let matchupsUnavailable = false;
+    try {
+      matchups = await fetchJson(`${API_BASE}/league/${SLEEPER_LEAGUE_ID}/matchups/${targetWeek}`);
+    } catch (e) {
+      matchupsUnavailable = true;
+    }
+
+    renderHeader(league, targetWeek, isLive);
+    renderMatchups(matchups, rosterById, teamDisplayName, ownerDisplayName, teamAvatar, matchupsUnavailable, targetWeek);
+    renderStandings(rosters, rosterById, teamDisplayName, ownerDisplayName, teamAvatar);
+
+    document.getElementById("last-refreshed").textContent =
+      `Last refreshed: ${new Date().toLocaleString()}`;
+
+  } catch (err) {
+    console.error(err);
+    setBanner(
+      `Couldn't load live league data (${err.message || "unknown error"}). ` +
+      `This may be a temporary Sleeper API issue — try Refresh data again in a moment.`,
+      "error"
+    );
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Refresh data";
+  }
+}
+
+/* ---------- rendering ---------- */
+
+function renderHeader(league, week, isLive){
+  document.getElementById("league-name").textContent = league.name || "Unnamed League";
+  const season = league.season ? `${league.season} Season` : "";
+  const total = league.total_rosters ? `${league.total_rosters} teams` : "";
+  document.getElementById("league-sub").textContent = [season, total].filter(Boolean).join(" · ");
+  document.getElementById("week-value").textContent = week;
+  document.getElementById("live-dot").style.display = isLive ? "inline-block" : "none";
+
+  const avatarImg = document.getElementById("league-avatar");
+  const url = avatarUrl(league.avatar, "full");
+  if (url){
+    avatarImg.src = url;
+    avatarImg.style.display = "block";
+    avatarImg.onerror = () => { avatarImg.style.display = "none"; };
+  } else {
+    avatarImg.style.display = "none";
+  }
+}
+
+function renderMatchups(matchups, rosterById, teamDisplayName, ownerDisplayName, teamAvatar, unavailable, week){
+  const grid = document.getElementById("matchup-grid");
+  const note = document.getElementById("matchup-note");
+
+  if (unavailable) {
+    grid.innerHTML = `<div class="banner info" style="grid-column:1/-1;">
+      Matchup data for week ${escapeHtml(week)} isn't available from Sleeper yet
+      (this is normal before the week's matchups have been generated).
+    </div>`;
+    note.textContent = "";
+    return;
+  }
+
+  if (!matchups || matchups.length === 0){
+    grid.innerHTML = `<div class="banner info" style="grid-column:1/-1;">
+      No matchups found for week ${escapeHtml(week)} yet.
+    </div>`;
+    note.textContent = "";
+    return;
+  }
+
+  // Group entries by matchup_id — never assume adjacent array order pairs them.
+  const groups = {};
+  matchups.forEach(m => {
+    const key = m.matchup_id === null || m.matchup_id === undefined ? `solo-${m.roster_id}` : m.matchup_id;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(m);
+  });
+
+  const cards = Object.values(groups).map(group => {
+    // Sort each pairing for stable left/right ordering (by roster_id)
+    group.sort((a,b) => a.roster_id - b.roster_id);
+
+    const rows = group.map(entry => {
+      const rEntry = rosterById[entry.roster_id];
+      const name = teamDisplayName(rEntry);
+      const owner = ownerDisplayName(rEntry);
+      const avatar = teamAvatar(rEntry);
+      const hasScore = typeof entry.points === "number";
+      const score = hasScore ? entry.points : 0;
+      return { name, owner, avatar, score, hasScore, rosterId: entry.roster_id };
+    });
+
+    let winnerIdx = -1;
+    if (rows.length === 2 && rows[0].hasScore && rows[1].hasScore && rows[0].score !== rows[1].score){
+      winnerIdx = rows[0].score > rows[1].score ? 0 : 1;
+    }
+
+    const rowsHtml = rows.map((r, idx) => {
+      const avatarTag = r.avatar
+        ? `<img class="team-avatar" src="${escapeHtml(r.avatar)}" alt="" onerror="this.style.display='none'">`
+        : `<div class="team-avatar"></div>`;
+      const winClass = idx === winnerIdx ? "winning" : "";
+      const scoreText = r.hasScore ? Number(r.score).toFixed(2) : "—";
+      return `
+        <div class="team-row ${winClass}">
+          ${avatarTag}
+          <div class="team-info">
+            <div class="team-name">${escapeHtml(r.name)}</div>
+            <div class="team-owner">${escapeHtml(r.owner)}</div>
+          </div>
+          <div class="team-score">${scoreText}</div>
+        </div>`;
+    }).join("");
+
+    const byeNote = rows.length === 1
+      ? `<div class="matchup-status"><span>Bye week</span><span></span></div>`
+      : `<div class="matchup-status"><span>Matchup</span><span></span></div>`;
+
+    return `<div class="matchup-card">${byeNote}${rowsHtml}</div>`;
+  });
+
+  grid.innerHTML = cards.join("");
+  note.textContent = `${Object.keys(groups).length} matchup${Object.keys(groups).length === 1 ? "" : "s"}`;
+}
+
+function renderStandings(rosters, rosterById, teamDisplayName, ownerDisplayName, teamAvatar){
+  const tbody = document.getElementById("standings-body");
+  const note = document.getElementById("standings-note");
+
+  if (!rosters || rosters.length === 0){
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--cream-dim);">No roster data available.</td></tr>`;
+    return;
+  }
+
+  const rows = rosters.map(r => {
+    const entry = rosterById[r.roster_id];
+    const s = r.settings || {};
+    const pf = combinePoints(s.fpts, s.fpts_decimal);
+    const pa = combinePoints(s.fpts_against, s.fpts_against_decimal);
+    return {
+      rosterId: r.roster_id,
+      name: teamDisplayName(entry),
+      owner: ownerDisplayName(entry),
+      avatar: teamAvatar(entry),
+      wins: s.wins || 0,
+      losses: s.losses || 0,
+      ties: s.ties || 0,
+      pf, pa
+    };
+  });
+
+  // Rank: most wins first, then most points scored as tiebreaker
+  rows.sort((a,b) => (b.wins - a.wins) || (b.pf - a.pf));
+
+  tbody.innerHTML = rows.map((row, idx) => {
+    const avatarTag = row.avatar
+      ? `<img src="${escapeHtml(row.avatar)}" alt="" onerror="this.style.display='none'">`
+      : "";
+    return `
+      <tr>
+        <td class="rank-cell">${idx + 1}</td>
+        <td>
+          <div class="team-cell">
+            ${avatarTag}
+            <div class="team-cell-text">
+              <span class="tname">${escapeHtml(row.name)}</span>
+              <span class="oname">${escapeHtml(row.owner)}</span>
+            </div>
+          </div>
+        </td>
+        <td class="num-cell">${row.wins}</td>
+        <td class="num-cell">${row.losses}</td>
+        <td class="num-cell">${row.ties}</td>
+        <td class="num-cell">${row.pf.toFixed(2)}</td>
+        <td class="num-cell">${row.pa.toFixed(2)}</td>
+      </tr>`;
+  }).join("");
+
+  note.textContent = `${rows.length} teams`;
+}
+
+/* ---------- boot ---------- */
+
+function scheduleAutoRefresh(){
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(loadAll, REFRESH_INTERVAL_MS);
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  loadAll();
+  scheduleAutoRefresh();
+});
+</script>
+
+</body>
+</html>
