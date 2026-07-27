@@ -295,6 +295,83 @@
     text-align:center;
   }
 
+  /* ===== Weekly awards ===== */
+  .award-card{
+    background:linear-gradient(180deg, var(--panel-raised), var(--panel));
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+    text-align:center;
+  }
+  .award-label{
+    font-size:0.66rem;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--gold);
+    margin-bottom:10px;
+  }
+  .award-card img{
+    width:44px;height:44px;border-radius:8px;
+    object-fit:cover;
+    border:1px solid var(--line);
+    margin-bottom:8px;
+  }
+  .award-team{ font-weight:600; font-size:0.95rem; }
+  .award-sub{ font-size:0.72rem; color:var(--cream-dim); margin-top:2px; }
+  .award-value{
+    font-family:'Teko',sans-serif;
+    font-size:2.2rem;
+    color:var(--cream);
+    line-height:1;
+    margin-top:6px;
+  }
+
+  /* ===== Seed badges ===== */
+  .seed-badge{
+    display:inline-block;
+    font-size:0.62rem;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-weight:700;
+    padding:3px 8px;
+    border-radius:20px;
+    border:1px solid;
+  }
+  .seed-badge.in{ color:var(--green-win); border-color:rgba(127,191,106,0.4); background:rgba(127,191,106,0.08); }
+  .seed-badge.out{ color:var(--cream-dim); border-color:var(--line); background:rgba(255,255,255,0.02); }
+  .seed-badge.bubble{ color:var(--gold); border-color:var(--gold-dim); background:rgba(232,179,74,0.08); }
+
+  /* ===== Seventh-seed tracker ===== */
+  .bubble-list{ display:flex; flex-direction:column; gap:12px; }
+  .bubble-row{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:12px 14px;
+  }
+  .bubble-row.leader{ border-color:var(--gold-dim); background:linear-gradient(180deg, var(--panel-raised), var(--panel)); }
+  .bubble-top{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .bubble-top img{ width:28px;height:28px;border-radius:6px;border:1px solid var(--line); flex-shrink:0; }
+  .bubble-name{ font-weight:600; font-size:0.9rem; flex:1; min-width:0; }
+  .bubble-pf{ font-family:'Teko',sans-serif; font-size:1.3rem; color:var(--gold); }
+  .bubble-bar-track{
+    height:8px;
+    border-radius:5px;
+    background:rgba(255,255,255,0.05);
+    overflow:hidden;
+  }
+  .bubble-bar-fill{
+    height:100%;
+    border-radius:5px;
+    background:linear-gradient(90deg, var(--gold-dim), var(--gold));
+  }
+  .bubble-gap{ font-size:0.7rem; color:var(--cream-dim); margin-top:6px; }
+
   @media (max-width:520px){
     .league-name{ font-size:1.2rem; }
     .scorebug .value{ font-size:1.5rem; }
@@ -349,6 +426,18 @@
 
   <section>
     <div class="section-head">
+      <div class="section-title">Weekly awards</div>
+      <div class="section-note" id="awards-note"></div>
+    </div>
+    <div class="matchup-grid" id="awards-grid">
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
       <div class="section-title">Standings</div>
       <div class="section-note" id="standings-note"></div>
     </div>
@@ -369,6 +458,48 @@
           <tr><td colspan="7" style="padding:20px; text-align:center; color:var(--cream-dim);">Loading standings…</td></tr>
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="section-title">Playoff race</div>
+      <div class="section-note" id="playoff-note"></div>
+    </div>
+    <div class="standings-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Seed</th>
+            <th>Team</th>
+            <th class="num-cell">W</th>
+            <th class="num-cell">L</th>
+            <th class="num-cell">T</th>
+            <th class="num-cell">PF</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="playoff-body">
+          <tr><td colspan="7" style="padding:20px; text-align:center; color:var(--cream-dim);">Loading playoff picture…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="section-title">7th-seed tracker</div>
+      <div class="section-note" id="bubble-note"></div>
+    </div>
+    <div class="section-note" style="margin-bottom:12px;">
+      Seeds 1–6 go by record. The 7th and final playoff spot goes to whichever of the remaining teams
+      has the most total points scored on the season — this list tracks that race.
+    </div>
+    <div class="bubble-list" id="bubble-list">
+      <div class="skeleton" style="height:64px;"></div>
+      <div class="skeleton" style="height:64px;"></div>
+      <div class="skeleton" style="height:64px;"></div>
+      <div class="skeleton" style="height:64px;"></div>
     </div>
   </section>
 
@@ -514,9 +645,41 @@ async function loadAll(){
       matchupsUnavailable = true;
     }
 
+    // 4. Historical weekly matchups (regular season, completed weeks only) —
+    // needed to work out head-to-head results for the standings/playoff-race
+    // tiebreakers below. Each week is fetched independently so one bad week
+    // can't take down the rest of the page.
+    const playoffWeekStart = league.settings && typeof league.settings.playoff_week_start === "number"
+      ? league.settings.playoff_week_start
+      : null;
+    const lastCompletedWeek = Math.max(0, Math.min(targetWeek - 1, playoffWeekStart ? playoffWeekStart - 1 : targetWeek - 1));
+    const weekNumbers = [];
+    for (let w = 1; w <= lastCompletedWeek; w++) weekNumbers.push(w);
+    const historicalMatchups = await Promise.all(
+      weekNumbers.map(w => fetchJson(`${API_BASE}/league/${SLEEPER_LEAGUE_ID}/matchups/${w}`).catch(() => []))
+    );
+
+    // Build per-team rows (record + points), then rank them using:
+    //   - record (wins) first
+    //   - a 2-way tie is broken by head-to-head result, falling back to points-for
+    //   - a 3-or-more-way tie skips head-to-head and goes straight to points-for
+    // Finally, apply the league's custom rule for the last playoff spot: instead
+    // of following the record-based order, it goes to whichever team outside the
+    // top spots has the highest total points for on the season.
+    const teamRows = buildTeamRows(rosters, rosterById, teamDisplayName, ownerDisplayName, teamAvatar);
+    const h2h = buildHeadToHead(historicalMatchups);
+    const rankedByRecord = rankTeams(teamRows, h2h);
+    const playoffTeams = (league.settings && typeof league.settings.playoff_teams === "number")
+      ? league.settings.playoff_teams
+      : 7;
+    const seedInfo = applyFinalSeedRule(rankedByRecord, playoffTeams);
+
     renderHeader(league, targetWeek, isLive);
     renderMatchups(matchups, rosterById, teamDisplayName, ownerDisplayName, teamAvatar, matchupsUnavailable, targetWeek);
-    renderStandings(rosters, rosterById, teamDisplayName, ownerDisplayName, teamAvatar);
+    renderWeeklyAwards(matchups, rosterById, teamDisplayName, ownerDisplayName, teamAvatar);
+    renderStandings(seedInfo.finalOrder);
+    renderPlayoffRace(seedInfo, playoffTeams);
+    renderSeventhSeedTracker(seedInfo);
 
     document.getElementById("last-refreshed").textContent =
       `Last refreshed: ${new Date().toLocaleString()}`;
@@ -631,34 +794,14 @@ function renderMatchups(matchups, rosterById, teamDisplayName, ownerDisplayName,
   note.textContent = `${Object.keys(groups).length} matchup${Object.keys(groups).length === 1 ? "" : "s"}`;
 }
 
-function renderStandings(rosters, rosterById, teamDisplayName, ownerDisplayName, teamAvatar){
+function renderStandings(rows){
   const tbody = document.getElementById("standings-body");
   const note = document.getElementById("standings-note");
 
-  if (!rosters || rosters.length === 0){
+  if (!rows || rows.length === 0){
     tbody.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--cream-dim);">No roster data available.</td></tr>`;
     return;
   }
-
-  const rows = rosters.map(r => {
-    const entry = rosterById[r.roster_id];
-    const s = r.settings || {};
-    const pf = combinePoints(s.fpts, s.fpts_decimal);
-    const pa = combinePoints(s.fpts_against, s.fpts_against_decimal);
-    return {
-      rosterId: r.roster_id,
-      name: teamDisplayName(entry),
-      owner: ownerDisplayName(entry),
-      avatar: teamAvatar(entry),
-      wins: s.wins || 0,
-      losses: s.losses || 0,
-      ties: s.ties || 0,
-      pf, pa
-    };
-  });
-
-  // Rank: most wins first, then most points scored as tiebreaker
-  rows.sort((a,b) => (b.wins - a.wins) || (b.pf - a.pf));
 
   tbody.innerHTML = rows.map((row, idx) => {
     const avatarTag = row.avatar
@@ -685,6 +828,300 @@ function renderStandings(rosters, rosterById, teamDisplayName, ownerDisplayName,
   }).join("");
 
   note.textContent = `${rows.length} teams`;
+}
+
+/* ---------- standings ranking + custom 7th-seed rule ---------- */
+
+function buildTeamRows(rosters, rosterById, teamDisplayName, ownerDisplayName, teamAvatar){
+  return (rosters || []).map(r => {
+    const entry = rosterById[r.roster_id];
+    const s = r.settings || {};
+    return {
+      rosterId: r.roster_id,
+      name: teamDisplayName(entry),
+      owner: ownerDisplayName(entry),
+      avatar: teamAvatar(entry),
+      wins: s.wins || 0,
+      losses: s.losses || 0,
+      ties: s.ties || 0,
+      pf: combinePoints(s.fpts, s.fpts_decimal),
+      pa: combinePoints(s.fpts_against, s.fpts_against_decimal)
+    };
+  });
+}
+
+function pairKey(a, b){ return [a, b].sort((x, y) => x - y).join("-"); }
+
+// Builds a head-to-head win count between every pair of rosters that have
+// played each other, from completed weekly matchups only.
+function buildHeadToHead(weeklyMatchupsList){
+  const h2h = {};
+  (weeklyMatchupsList || []).forEach(weekMatchups => {
+    if (!weekMatchups) return;
+    const groups = {};
+    weekMatchups.forEach(m => {
+      if (m.matchup_id === null || m.matchup_id === undefined) return;
+      (groups[m.matchup_id] = groups[m.matchup_id] || []).push(m);
+    });
+    Object.values(groups).forEach(g => {
+      if (g.length !== 2) return;
+      const [a, b] = g;
+      if (typeof a.points !== "number" || typeof b.points !== "number") return;
+      if (a.points === b.points) return; // tie — no head-to-head winner
+      const winnerId = a.points > b.points ? a.roster_id : b.roster_id;
+      const key = pairKey(a.roster_id, b.roster_id);
+      h2h[key] = h2h[key] || {};
+      h2h[key][winnerId] = (h2h[key][winnerId] || 0) + 1;
+    });
+  });
+  return h2h;
+}
+
+// Ranks teams by record. A 2-way tie is broken by head-to-head result
+// (falling back to points-for if they haven't played or split evenly);
+// a 3-or-more-way tie skips head-to-head and goes straight to points-for.
+function rankTeams(rows, h2h){
+  const byWins = {};
+  rows.forEach(r => { (byWins[r.wins] = byWins[r.wins] || []).push(r); });
+  const winLevels = Object.keys(byWins).map(Number).sort((a, b) => b - a);
+
+  let ranked = [];
+  winLevels.forEach(w => {
+    const group = byWins[w];
+    if (group.length === 1){
+      ranked.push(group[0]);
+      return;
+    }
+    if (group.length === 2){
+      const [t1, t2] = group;
+      const rec = h2h[pairKey(t1.rosterId, t2.rosterId)];
+      let ordered = null;
+      if (rec){
+        const w1 = rec[t1.rosterId] || 0;
+        const w2 = rec[t2.rosterId] || 0;
+        if (w1 !== w2) ordered = w1 > w2 ? [t1, t2] : [t2, t1];
+      }
+      if (!ordered) ordered = t1.pf >= t2.pf ? [t1, t2] : [t2, t1];
+      ranked = ranked.concat(ordered);
+    } else {
+      ranked = ranked.concat([...group].sort((a, b) => b.pf - a.pf));
+    }
+  });
+  return ranked;
+}
+
+// Custom league rule: seeds are otherwise record-based, but the last
+// playoff spot goes to whichever team outside the locked-in seeds has
+// scored the most total points on the season, regardless of record.
+function applyFinalSeedRule(rankedByRecord, playoffTeams){
+  if (!rankedByRecord.length || rankedByRecord.length <= playoffTeams){
+    return { finalOrder: rankedByRecord, bubblePool: [], finalSeedTeam: null, playoffTeams };
+  }
+  const lockedIn = rankedByRecord.slice(0, playoffTeams - 1);
+  const pool = rankedByRecord.slice(playoffTeams - 1);
+  const poolByPoints = [...pool].sort((a, b) => b.pf - a.pf);
+  const finalSeedTeam = poolByPoints[0];
+  const rest = pool.filter(t => t.rosterId !== finalSeedTeam.rosterId);
+  const finalOrder = [...lockedIn, finalSeedTeam, ...rest];
+  return { finalOrder, bubblePool: poolByPoints, finalSeedTeam, playoffTeams };
+}
+
+/* ---------- weekly awards ---------- */
+
+function renderWeeklyAwards(matchups, rosterById, teamDisplayName, ownerDisplayName, teamAvatar){
+  const grid = document.getElementById("awards-grid");
+  const note = document.getElementById("awards-note");
+
+  if (!matchups || matchups.length === 0){
+    grid.innerHTML = `<div class="banner info" style="grid-column:1/-1;">Awards will appear once this week's matchups are live.</div>`;
+    note.textContent = "";
+    return;
+  }
+
+  const groups = {};
+  matchups.forEach(m => {
+    const key = m.matchup_id === null || m.matchup_id === undefined ? `solo-${m.roster_id}` : m.matchup_id;
+    (groups[key] = groups[key] || []).push(m);
+  });
+
+  let highest = null, closest = null, blowout = null, anyScoring = false;
+
+  Object.values(groups).forEach(g => {
+    g.forEach(entry => {
+      if (typeof entry.points === "number" && entry.points > 0){
+        anyScoring = true;
+        if (!highest || entry.points > highest.points) highest = { rosterId: entry.roster_id, points: entry.points };
+      }
+    });
+    if (g.length === 2){
+      const [a, b] = g;
+      if (typeof a.points === "number" && typeof b.points === "number" && (a.points > 0 || b.points > 0)){
+        const diff = Math.abs(a.points - b.points);
+        if (diff > 0){
+          const winnerId = a.points > b.points ? a.roster_id : b.roster_id;
+          const loserId = a.points > b.points ? b.roster_id : a.roster_id;
+          const rec = { diff, winnerId, loserId };
+          if (!closest || diff < closest.diff) closest = rec;
+          if (!blowout || diff > blowout.diff) blowout = rec;
+        }
+      }
+    }
+  });
+
+  if (!anyScoring){
+    grid.innerHTML = `<div class="banner info" style="grid-column:1/-1;">Awards will appear once this week's games kick off.</div>`;
+    note.textContent = "";
+    return;
+  }
+
+  function teamMeta(rosterId){
+    const entry = rosterById[rosterId];
+    return {
+      name: teamDisplayName(entry),
+      owner: ownerDisplayName(entry),
+      avatar: teamAvatar(entry)
+    };
+  }
+
+  function avatarTag(avatar){
+    return avatar
+      ? `<img src="${escapeHtml(avatar)}" alt="" onerror="this.style.display='none'">`
+      : "";
+  }
+
+  const cards = [];
+
+  if (highest){
+    const t = teamMeta(highest.rosterId);
+    cards.push(`
+      <div class="award-card">
+        <div class="award-label">Highest score</div>
+        ${avatarTag(t.avatar)}
+        <div class="award-team">${escapeHtml(t.name)}</div>
+        <div class="award-sub">${escapeHtml(t.owner)}</div>
+        <div class="award-value">${highest.points.toFixed(2)}</div>
+      </div>`);
+  }
+
+  if (closest){
+    const w = teamMeta(closest.winnerId);
+    cards.push(`
+      <div class="award-card">
+        <div class="award-label">Closest win</div>
+        ${avatarTag(w.avatar)}
+        <div class="award-team">${escapeHtml(w.name)}</div>
+        <div class="award-sub">won by</div>
+        <div class="award-value">${closest.diff.toFixed(2)}</div>
+      </div>`);
+  }
+
+  if (blowout){
+    const w = teamMeta(blowout.winnerId);
+    cards.push(`
+      <div class="award-card">
+        <div class="award-label">Biggest blowout</div>
+        ${avatarTag(w.avatar)}
+        <div class="award-team">${escapeHtml(w.name)}</div>
+        <div class="award-sub">won by</div>
+        <div class="award-value">${blowout.diff.toFixed(2)}</div>
+      </div>`);
+  }
+
+  grid.innerHTML = cards.length
+    ? cards.join("")
+    : `<div class="banner info" style="grid-column:1/-1;">Not enough completed matchups yet to calculate awards.</div>`;
+  note.textContent = "So far this week";
+}
+
+/* ---------- playoff race ---------- */
+
+function renderPlayoffRace(seedInfo, playoffTeams){
+  const tbody = document.getElementById("playoff-body");
+  const note = document.getElementById("playoff-note");
+  const rows = seedInfo.finalOrder;
+
+  if (!rows || rows.length === 0){
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--cream-dim);">No roster data available.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((row, idx) => {
+    const seed = idx + 1;
+    const isFinalSeedTeam = seedInfo.finalSeedTeam && row.rosterId === seedInfo.finalSeedTeam.rosterId;
+    const inPlayoffs = seed <= playoffTeams;
+    let badge;
+    if (isFinalSeedTeam){
+      badge = `<span class="seed-badge in">In · pts-for seed</span>`;
+    } else if (inPlayoffs){
+      badge = `<span class="seed-badge in">In</span>`;
+    } else if (seed === playoffTeams + 1){
+      badge = `<span class="seed-badge bubble">On the bubble</span>`;
+    } else {
+      badge = `<span class="seed-badge out">Out</span>`;
+    }
+    const avatarTag = row.avatar
+      ? `<img src="${escapeHtml(row.avatar)}" alt="" onerror="this.style.display='none'">`
+      : "";
+    return `
+      <tr>
+        <td class="rank-cell">${seed}</td>
+        <td>
+          <div class="team-cell">
+            ${avatarTag}
+            <div class="team-cell-text">
+              <span class="tname">${escapeHtml(row.name)}</span>
+              <span class="oname">${escapeHtml(row.owner)}</span>
+            </div>
+          </div>
+        </td>
+        <td class="num-cell">${row.wins}</td>
+        <td class="num-cell">${row.losses}</td>
+        <td class="num-cell">${row.ties}</td>
+        <td class="num-cell">${row.pf.toFixed(2)}</td>
+        <td>${badge}</td>
+      </tr>`;
+  }).join("");
+
+  note.textContent = `Top ${playoffTeams} make the playoffs`;
+}
+
+/* ---------- seventh-seed tracker ---------- */
+
+function renderSeventhSeedTracker(seedInfo){
+  const list = document.getElementById("bubble-list");
+  const note = document.getElementById("bubble-note");
+  const pool = seedInfo.bubblePool;
+
+  if (!pool || pool.length === 0){
+    list.innerHTML = `<div class="banner info">No teams currently in the points-for race for the last playoff spot.</div>`;
+    note.textContent = "";
+    return;
+  }
+
+  const leaderPf = pool[0].pf || 0.0001;
+
+  list.innerHTML = pool.map((team, idx) => {
+    const isLeader = idx === 0;
+    const pct = Math.max(4, Math.min(100, (team.pf / leaderPf) * 100));
+    const avatarTag = team.avatar
+      ? `<img src="${escapeHtml(team.avatar)}" alt="" onerror="this.style.display='none'">`
+      : "";
+    const gapText = isLeader
+      ? "Leads the points-for race for the final playoff spot"
+      : `${(leaderPf - team.pf).toFixed(2)} pts behind the pace`;
+    return `
+      <div class="bubble-row ${isLeader ? "leader" : ""}">
+        <div class="bubble-top">
+          ${avatarTag}
+          <div class="bubble-name">${escapeHtml(team.name)}<br><span class="oname" style="color:var(--cream-dim);font-size:0.72rem;font-weight:400;">${escapeHtml(team.owner)}</span></div>
+          <div class="bubble-pf">${team.pf.toFixed(2)}</div>
+        </div>
+        <div class="bubble-bar-track"><div class="bubble-bar-fill" style="width:${pct}%;"></div></div>
+        <div class="bubble-gap">${gapText}</div>
+      </div>`;
+  }).join("");
+
+  note.textContent = `${pool.length} teams in the mix`;
 }
 
 /* ---------- boot ---------- */
