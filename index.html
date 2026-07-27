@@ -408,6 +408,48 @@
   }
   .bubble-gap{ font-size:0.7rem; color:var(--text-dim); margin-top:6px; }
 
+  /* ===== Commissioner's power rankings ===== */
+  .power-rankings-list{ display:flex; flex-direction:column; gap:10px; }
+  .power-rank-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:12px 14px;
+  }
+  .power-rank-num{
+    font-family:'Inter',sans-serif;
+    font-weight:800;
+    font-size:1.3rem;
+    color:var(--accent);
+    width:26px;
+    flex-shrink:0;
+    text-align:center;
+  }
+  .power-rank-avatar{
+    width:32px;height:32px;border-radius:6px;
+    object-fit:cover;
+    border:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .power-rank-body{ flex:1; min-width:0; }
+  .power-rank-team{ font-weight:600; font-size:0.92rem; }
+  .power-rank-owner{ font-size:0.7rem; color:var(--text-dim); }
+  .power-rank-blurb{ font-size:0.8rem; color:var(--text-dim); margin-top:4px; }
+  .power-rank-move{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    font-weight:600;
+    flex-shrink:0;
+    width:44px;
+    text-align:right;
+  }
+  .power-rank-move.up{ color:var(--green-win); }
+  .power-rank-move.down{ color:var(--red); }
+  .power-rank-move.same{ color:var(--text-dim); }
+
   @media (max-width:520px){
     .league-name{ font-size:1.2rem; }
     .scorebug .value{ font-size:1.5rem; }
@@ -427,7 +469,7 @@
   <div class="sitenav-inner">
     <a class="sitenav-brand" href="index.html">USN22FFLeague</a>
     <div class="sitenav-links">
-      <a class="sitenav-link active" href="index.html">2026 Season</a>
+      <a class="sitenav-link active" href="index.html">Current Season</a>
       <a class="sitenav-link" href="history.html">History &amp; Rulebook</a>
     </div>
   </div>
@@ -479,6 +521,18 @@
       <div class="skeleton skeleton-card"></div>
       <div class="skeleton skeleton-card"></div>
       <div class="skeleton skeleton-card"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="section-title" id="power-rankings-title">Commissioner's Power Rankings</div>
+      <div class="section-note" id="power-rankings-note"></div>
+    </div>
+    <div id="power-rankings-list" class="power-rankings-list">
+      <div class="skeleton" style="height:56px;"></div>
+      <div class="skeleton" style="height:56px;"></div>
+      <div class="skeleton" style="height:56px;"></div>
     </div>
   </section>
 
@@ -558,12 +612,34 @@
 <script>
 /* ============================================================
    SLEEPER LEAGUE ID
-   This is the only piece of league-specific configuration in
-   this file. Everything else (teams, owners, scores, records,
-   week number, avatars) is fetched live from Sleeper — nothing
-   below is hard-coded.
+   Everything on this page (teams, owners, scores, records, week
+   number, avatars) is fetched live from Sleeper — nothing is
+   hard-coded — except the two small editable blocks below this
+   one (the power rankings), which Sleeper has no concept of.
    ============================================================ */
 const SLEEPER_LEAGUE_ID = "1387266698674999296";
+
+/* ============================================================
+   COMMISSIONER'S POWER RANKINGS
+   Sleeper has no "power rankings" of its own, so this is the one
+   piece of editorial content on the page — add to it each week.
+
+   Add one entry per week, keyed by the week number, with teams
+   listed best-to-worst. Identify each team by its owner's Sleeper
+   display name OR its exact team name (whichever's on that
+   team's card on the site) — either works. "blurb" is optional.
+   The heading above automatically reads "Commissioner's Week N
+   Power Rankings" based on Sleeper's current week; this object
+   just needs that week's list filled in once you've made the call.
+
+   Example:
+   1: [
+     { team: "Jackson L", blurb: "Explosive week 1, offense looks scary." },
+     { team: "Kyle" },
+   ],
+   ============================================================ */
+const POWER_RANKINGS = {
+};
 
 /* All Sleeper endpoints are called over HTTPS and require no API key. */
 const API_BASE = "https://api.sleeper.app/v1";
@@ -723,6 +799,7 @@ async function loadAll(){
     renderHeader(league, targetWeek, isLive);
     renderMatchups(matchups, rosterById, teamDisplayName, ownerDisplayName, teamAvatar, matchupsUnavailable, targetWeek);
     renderWeeklyAwards(matchups, rosterById, teamDisplayName, ownerDisplayName, teamAvatar);
+    renderPowerRankings(targetWeek, rosters, rosterById, teamDisplayName, ownerDisplayName, teamAvatar);
     renderStandings(seedInfo.finalOrder);
     renderPlayoffRace(seedInfo, playoffTeams);
     renderSeventhSeedTracker(seedInfo);
@@ -1077,6 +1154,81 @@ function renderWeeklyAwards(matchups, rosterById, teamDisplayName, ownerDisplayN
     ? cards.join("")
     : `<div class="banner info" style="grid-column:1/-1;">Not enough completed matchups yet to calculate awards.</div>`;
   note.textContent = "So far this week";
+}
+
+/* ---------- commissioner's power rankings ---------- */
+
+// Matches a name from POWER_RANKINGS (team name or owner display name,
+// case-insensitive) to a live roster. Returns null if nothing matches,
+// in which case the raw label is still shown as plain text.
+function findRosterByLabel(label, rosters, rosterById, teamDisplayName, ownerDisplayName){
+  const norm = s => (s || "").trim().toLowerCase();
+  const target = norm(label);
+  if (!target) return null;
+
+  for (const r of rosters){
+    const entry = rosterById[r.roster_id];
+    if (norm(teamDisplayName(entry)) === target) return { rosterId: r.roster_id, entry };
+  }
+  for (const r of rosters){
+    const entry = rosterById[r.roster_id];
+    const owner = entry && entry.owner;
+    if (owner && norm(owner.display_name) === target) return { rosterId: r.roster_id, entry };
+  }
+  return null;
+}
+
+function renderPowerRankings(targetWeek, rosters, rosterById, teamDisplayName, ownerDisplayName, teamAvatar){
+  document.getElementById("power-rankings-title").textContent = `Commissioner's Week ${targetWeek} Power Rankings`;
+  const list = document.getElementById("power-rankings-list");
+  const note = document.getElementById("power-rankings-note");
+
+  const thisWeek = POWER_RANKINGS[targetWeek];
+  if (!thisWeek || !thisWeek.length){
+    list.innerHTML = `<div class="banner info">The commissioner hasn't posted Week ${targetWeek} power rankings yet.</div>`;
+    note.textContent = "";
+    return;
+  }
+
+  const lastWeek = POWER_RANKINGS[targetWeek - 1] || null;
+  const lastWeekOrder = lastWeek ? lastWeek.map(e => (e.team || "").trim().toLowerCase()) : null;
+
+  list.innerHTML = thisWeek.map((entry, idx) => {
+    const match = findRosterByLabel(entry.team, rosters, rosterById, teamDisplayName, ownerDisplayName);
+    const name = match ? teamDisplayName(match.entry) : (entry.team || "Unknown team");
+    const owner = match ? ownerDisplayName(match.entry) : "";
+    const avatar = match ? teamAvatar(match.entry) : null;
+    const avatarTag = avatar
+      ? `<img class="power-rank-avatar" src="${escapeHtml(avatar)}" alt="" onerror="this.style.display='none'">`
+      : `<div class="power-rank-avatar"></div>`;
+
+    let moveHtml = "";
+    if (lastWeekOrder){
+      const prevIdx = lastWeekOrder.indexOf((entry.team || "").trim().toLowerCase());
+      if (prevIdx === -1){
+        moveHtml = `<span class="power-rank-move same">NEW</span>`;
+      } else {
+        const diff = prevIdx - idx; // positive = moved up since last week
+        if (diff > 0) moveHtml = `<span class="power-rank-move up">▲${diff}</span>`;
+        else if (diff < 0) moveHtml = `<span class="power-rank-move down">▼${Math.abs(diff)}</span>`;
+        else moveHtml = `<span class="power-rank-move same">—</span>`;
+      }
+    }
+
+    return `
+      <div class="power-rank-row">
+        <div class="power-rank-num">${idx + 1}</div>
+        ${avatarTag}
+        <div class="power-rank-body">
+          <div class="power-rank-team">${escapeHtml(name)}</div>
+          ${owner ? `<div class="power-rank-owner">${escapeHtml(owner)}</div>` : ""}
+          ${entry.blurb ? `<div class="power-rank-blurb">${escapeHtml(entry.blurb)}</div>` : ""}
+        </div>
+        ${moveHtml}
+      </div>`;
+  }).join("");
+
+  note.textContent = lastWeek ? "Movement vs. last week" : "";
 }
 
 /* ---------- playoff race ---------- */
